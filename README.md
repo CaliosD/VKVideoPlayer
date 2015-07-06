@@ -1,3 +1,10 @@
+The update points:
+- Add touch actions for VKVideoPlayerView, including touch move to seek certain CMTime and touch up & down to change volumn.
+- To support above feature, VKVideoPlayerControlEventSwipeNext and VKVideoPlayerControlEventSwipePrevious are forbidden here.
+- To be continue.
+
+---
+
 # VKVideoPlayer
 
 ![VKVideoPlayer](http://engineering.viki.com/images/blog/video_player_running_man.jpg)
