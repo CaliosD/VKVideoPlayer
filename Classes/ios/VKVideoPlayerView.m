@@ -9,10 +9,10 @@
 #import "DDLog.h"
 #import "VKVideoPlayerConfig.h"
 #import "VKFoundation.h"
-#import "VKScrubber.h"
 #import "VKVideoPlayerTrack.h"
 #import "UIImage+VKFoundation.h"
 #import "VKVideoPlayerSettingsManager.h"
+#import <MediaPlayer/MediaPlayer.h>
 
 #define PADDING 8
 
@@ -27,8 +27,11 @@
 @property (nonatomic, strong) NSMutableArray* portraitControls;
 @property (nonatomic, strong) NSMutableArray* landscapeControls;
 
-@property (nonatomic, assign) BOOL isControlsEnabled;
-@property (nonatomic, assign) BOOL isControlsHidden;
+@property (nonatomic, assign) CGPoint startPoint;
+@property (nonatomic, assign) CGPoint endPoint;
+@property (nonatomic, assign) float currentTime;
+@property (nonatomic, assign) float seekTime;
+
 @end
 
 @implementation VKVideoPlayerView
@@ -49,10 +52,9 @@
   self.view.frame = self.frame;
   self.autoresizingMask = UIViewAutoresizingFlexibleWidth|UIViewAutoresizingFlexibleHeight;
   [self addSubview:self.view];
-  
-  self.titleLabel.font = THEMEFONT(@"fontRegular", DEVICEVALUE(22.0f, 14.0f));
-  self.titleLabel.textColor = THEMECOLOR(@"colorFont4");
-  self.titleLabel.text = @"";
+
+  self.titleLabel.font = THEMEFONT(@"fontRegular", DEVICEVALUE(22.0f, 19.0f));
+  self.titleLabel.textColor = [UIColor whiteColor];
 
   self.captionButton.titleLabel.font = THEMEFONT(@"fontRegular", 13.0f);
   [self.captionButton setTitleColor:THEMECOLOR(@"colorFont4") forState:UIControlStateNormal];
@@ -109,6 +111,52 @@
   [self.topPortraitCloseButton addTarget:self action:@selector(doneButtonTapped:) forControlEvents:UIControlEventTouchUpInside];
   
   self.playerControlsAutoHideTime = @5;
+    
+    // Lilac: added to control volume by gesture.(0609)
+    MPVolumeView *volumeView = [[MPVolumeView alloc]init];
+    self.volumeSlider = nil;
+    for (UIView *view in volumeView.subviews) {
+        if ([view.class.description isEqualToString:@"MPVolumeSlider"]) {
+            self.volumeSlider = (UISlider *)view;
+            break;
+        }
+    }
+//    self.captionTopView.alpha = 0.f;
+//    self.captionTopContainerView.alpha = 0.f;
+//    self.rewindButton.alpha = 0.f;
+//    self.nextButton.alpha = 0.f;
+    self.videoQualityButton.alpha = 0.f;
+    // Lilac: added end.
+    
+    // Lilac: add hud.(0623)
+    _mbProgress = [[MBProgressHUD alloc]initWithFrame:CGRectMake(100, 64, 100, 100)];
+    _mbProgress.frame = CGRectMake(110, 37, 100, 100);
+    _mbProgress.delegate = self;
+    _mbProgress.mode = MBProgressHUDModeCustomView;
+    _mbProgress.alpha = 0.f;
+    [self.view addSubview:_mbProgress];
+    // Lilac: add end.
+    
+    // Lilac: add user control slider.(0629)
+//    _userSlider = [[UISlider alloc]initWithFrame:CGRectMake(0, 300, 200, 20)];
+//    _userSlider.value = self.volumeSlider.value;
+//    _userSlider.transform = CGAffineTransformMakeRotation(-M_PI_2);
+//    [_userSlider addTarget:self action:@selector(volumeChanged:) forControlEvents:UIControlEventValueChanged];
+//    [self.view addSubview:_userSlider];
+    
+    self.currentTime = 0.0;
+    self.seekTime = 0.0;
+
+    // Lilac: add end.
+
+    [self.captionButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    [self.captionButton setTitle:@"en" forState:UIControlStateNormal];
+}
+
+- (void)volumeChanged:(id)sender
+{
+    UISlider *slider = (UISlider *)sender;
+    [self.volumeSlider setValue:slider.value animated:YES];
 }
 
 - (id)initWithFrame:(CGRect)frame {
@@ -128,7 +176,87 @@
   [super layoutSubviews];
 }
 
-#pragma - VKVideoPlayerViewDelegates
+// Lilac: added to control volume and process by gesture.(0609)
+#pragma mark - Touch Event Handler
+
+- (void)touchesBegan:(NSSet *)touches withEvent:(UIEvent *)event
+{
+    UITouch *touch = [touches anyObject];
+    _startPoint = [touch locationInView:self.view];
+    _currentTime = self.scrubber.value;
+    _seekTime = self.scrubber.value;
+}
+
+- (void)touchesMoved:(NSSet *)touches withEvent:(UIEvent *)event
+{
+    self.mbProgress.alpha = 1.f;
+
+    for (UITouch *touch in touches.allObjects) {
+        CGPoint curPoint = [touch locationInView:self.view];
+        CGPoint prePoint = [touch previousLocationInView:self.view];
+        if (fabs(curPoint.y - _startPoint.y) > fabs(curPoint.x - _startPoint.x)) {
+            float deltaY = curPoint.y - prePoint.y;
+            [self.mbProgress hide:YES];
+            [self changeVolumeWithDelta:deltaY];
+        }else{
+            if (self.bigPlayButton.hidden == NO) {
+                self.bigPlayButton.hidden = YES;
+            }
+            float deltaX = curPoint.x - _startPoint.x;
+            BOOL isForward = curPoint.x > prePoint.x ? YES : NO;
+            [self updateMBProgressWithDelta:deltaX andForward:isForward];
+        }
+    }
+}
+
+- (void)touchesEnded:(NSSet *)touches withEvent:(UIEvent *)event
+{
+    [self.delegate playButtonPressed];
+    [self.gestureDelegate changeScrubberValueWithSeekTime:_seekTime];
+}
+
+- (void)touchesCancelled:(NSSet *)touches withEvent:(UIEvent *)event
+{
+    NSLog(@"touch cancel");
+}
+
+- (void)changeVolumeWithDelta:(float)d
+{
+    float systemVolume = 0.f;
+    if (self.volumeSlider) {
+        systemVolume = self.volumeSlider.value;
+    }
+    systemVolume -= d/50;
+    NSLog(@"volume: %f",systemVolume);
+    [self.volumeSlider setValue:systemVolume animated:YES];
+    [_userSlider setValue:systemVolume animated:YES];
+}
+/*
+- (void)changeBrightness
+{
+    float systemBrightness = [[UIScreen mainScreen] brightness];
+    float brightness = 0.f;
+    
+    if (_startPoint.y - _endPoint.y >= 5) {
+        brightness = (systemBrightness + 0.01)>=1.0 ? 1.0 : (systemBrightness + 0.01);
+    }
+    else if(_endPoint.y - _startPoint.y > 5)
+    {
+        brightness = (systemBrightness - 0.01)<=0.0 ? 0.0 : (systemBrightness - 0.01);
+    }
+    [[UIScreen mainScreen] setBrightness:brightness];
+}
+*/
+- (void)updateMBProgressWithDelta:(float)delta andForward:(BOOL)isForward
+{
+    self.mbProgress.customView = isForward ? [[UIImageView alloc]initWithImage:[UIImage imageNamed:@"afterward"]] : [[UIImageView alloc]initWithImage:[UIImage imageNamed:@"previous"]];
+    _seekTime = [self.gestureDelegate updateMBProgressWithCurrent:_currentTime andDelta:delta];
+    [self updateTimeLabels];
+}
+
+// Lilac: added end.
+
+#pragma mark - VKVideoPlayerViewDelegates
 
 - (IBAction)playButtonTapped:(id)sender {
 
@@ -219,8 +347,6 @@
 }
 
 - (void)updateTimeLabels {
-  DDLogVerbose(@"Updating TimeLabels: %f", self.scrubber.value);
-  
   [self.currentTimeLabel setFrameWidth:100.0f];
   [self.totalTimeLabel setFrameWidth:100.0f];
   
@@ -259,8 +385,9 @@
       rightMargin = MIN(CGRectGetMinX(button.frame), rightMargin);
     }
   }
-  
-  [self.titleLabel setFrameWidth:rightMargin - CGRectGetMinX(self.titleLabel.frame) - 20];
+    
+    self.titleLabel.frame = CGRectMake(44, 0,rightMargin - 44 * 2, 44);
+    self.titleLabel.text = @"VideoSample";
 }
 
 - (void)setPlayButtonsSelected:(BOOL)selected {
@@ -307,7 +434,7 @@
   }
   [self.delegate playerViewSingleTapped];
 }
-
+/*
 - (IBAction)handleSwipeLeft:(id)sender {
   [self.delegate nextTrackBySwipe];
 }
@@ -315,7 +442,7 @@
 - (IBAction)handleSwipeRight:(id)sender {
   [self.delegate previousTrackBySwipe];
 }
-
+*/
 - (void)setControlHideCountdown:(NSInteger)controlHideCountdown {
   if (controlHideCountdown == 0) {
     [self setControlsHidden:YES];
@@ -377,7 +504,6 @@
     
     [self.buttonPlaceHolderView setFrameOriginY:PADDING/2];
     self.buttonPlaceHolderView.hidden = YES;
-    
     self.captionButton.hidden = YES;
     self.videoQualityButton.hidden = YES;
     

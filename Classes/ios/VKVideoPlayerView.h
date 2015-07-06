@@ -10,6 +10,7 @@
 #import "VKPickerButton.h"
 #import "VKView.h"
 #import "VKVideoPlayerConfig.h"
+#import <MBProgressHUD.h>
 
 #define kPlayerControlsDisableAutoHide -1
 
@@ -42,7 +43,20 @@
 
 @end
 
-@interface VKVideoPlayerView : UIView
+// Lilac: Add for gesture.(0608)
+
+@protocol VKVideoPlayerGestureDelegate <NSObject>
+
+- (float)updateMBProgressWithCurrent:(float)current andDelta:(float)delta;
+- (void)changeScrubberValueWithSeekTime:(float)seekTime;
+
+@end
+// Lilac: end.
+
+@interface VKVideoPlayerView : UIView<
+// Lilac: added for hub. (0623)
+MBProgressHUDDelegate>
+
 @property (nonatomic, strong) IBOutlet UIView* view;
 @property (nonatomic, strong) IBOutlet VKVideoPlayerLayerView* playerLayerView;
 @property (nonatomic, strong) IBOutlet UIView* controls;
@@ -76,11 +90,16 @@
 @property (nonatomic, strong) IBOutlet DTAttributedLabel* captionBottomView;
 @property (nonatomic, strong) IBOutlet UIView* captionTopContainerView;
 
-@property (nonatomic, readonly) BOOL isControlsEnabled;
-@property (nonatomic, readonly) BOOL isControlsHidden;
+@property (nonatomic, strong) UISlider *volumeSlider;   // Lilac: added.(0609)
+@property (nonatomic, strong) UISlider *userSlider;   // Lilac: added.(0629)
+
+@property (nonatomic, assign) BOOL isControlsEnabled;
+@property (nonatomic, assign) BOOL isControlsHidden;
 
 @property (nonatomic, weak) id<VKVideoPlayerViewDelegate> delegate;
 
+@property (nonatomic, weak) id<VKVideoPlayerGestureDelegate> gestureDelegate;   // Lilac:added.(0609)
+@property (nonatomic, strong) IBOutlet MBProgressHUD *mbProgress;    // Lilac:added.(0623)
 @property (nonatomic, assign) NSInteger controlHideCountdown;
 
 @property (nonatomic, strong) IBOutlet UIView* externalDeviceView;
@@ -104,8 +123,8 @@
 - (IBAction)videoQualityButtonTapped:(id)sender;
 
 - (IBAction)handleSingleTap:(id)sender;
-- (IBAction)handleSwipeLeft:(id)sender;
-- (IBAction)handleSwipeRight:(id)sender;
+//- (IBAction)handleSwipeLeft:(id)sender;   // Lilac: killed for touch events.(0630)
+//- (IBAction)handleSwipeRight:(id)sender;  // Lilac: killed for touch events.(0630)
 
 - (void)updateTimeLabels;
 - (void)setControlsHidden:(BOOL)hidden;

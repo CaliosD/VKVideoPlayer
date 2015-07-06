@@ -11,14 +11,20 @@
 #import "VKThemeManager.h"
 #import "DemoHTTPStreamingServer.h"
 
+static const int ddLogLevel = LOG_LEVEL_VERBOSE;
 @implementation VKAppDelegate
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions
 {
+    setenv("XcodeColors", "YES", 0);
   [DDLog addLogger:[DDASLLogger sharedInstance]];
   [DDLog addLogger:[DDTTYLogger sharedInstance]];
-
-  self.window = [[UIWindow alloc] initWithFrame:[[UIScreen mainScreen] bounds]];
+  [[DDTTYLogger sharedInstance] setColorsEnabled:YES];
+//    DDLogError(@"Fatal error, no dohickey found!");
+//    DDLogError(@"Paper jam");                              // Red
+//    DDLogWarn(@"Toner is low");                            // Orange
+    
+    self.window = [[UIWindow alloc] initWithFrame:[[UIScreen mainScreen] bounds]];
   // Override point for customization after application launch.
   self.window.backgroundColor = [UIColor whiteColor];
   [self.window makeKeyAndVisible];

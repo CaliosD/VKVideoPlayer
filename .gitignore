@@ -22,4 +22,7 @@ profile
 DerivedData
 *.hmap
 *.ipa
-
+*.mp4
+*.m3u8
+*.ts
+VKVideoPlayerTests/

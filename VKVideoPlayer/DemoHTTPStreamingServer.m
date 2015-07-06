@@ -29,6 +29,8 @@
 	[self.httpServer setType:@"_http._tcp."];
   [self.httpServer setPort:12345];
 	NSString *webPath = [[[NSBundle mainBundle] resourcePath] stringByAppendingPathComponent:@"web"];
+    NSLog(@"=====> web path: %@",webPath);
+
 	[self.httpServer setDocumentRoot:webPath];
 }
 

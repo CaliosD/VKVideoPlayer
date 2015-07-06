@@ -78,10 +78,10 @@ typedef enum {
   
   if ([viewController isKindOfClass:[VKVideoPlayerViewController class]]) {
     VKVideoPlayerViewController *videoController = (VKVideoPlayerViewController*)viewController;
-    [videoController playVideoWithStreamURL:[NSURL URLWithString:@"http://localhost:12345/ios_240.m3u8"]];
-    [videoController setSubtitle:[self testCaption:@"testCaptionBottom"]];
+    [videoController playVideoWithStreamURL:[NSURL URLWithString:@"http://localhost:12345/SimpleLove.mp4"]];
+//    [videoController setSubtitle:[self testCaption:@"testCaptionBottom"]];
     
-    [videoController.player setCaptionToTop:[self testCaption:@"testCaptionTop"]];
+//    [videoController.player setCaptionToTop:[self testCaption:@"testCaptionTop"]];
   }
 }
 

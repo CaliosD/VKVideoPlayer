@@ -12,7 +12,6 @@
 #import "NSObject+VKFoundation.h"
 #import "VKVideoPlayerExternalMonitor.h"
 
-
 #define VKCaptionPadding 10
 #define degreesToRadians(x) (M_PI * x / 180.0f)
 
@@ -33,7 +32,7 @@ typedef enum {
   VKVideoPlayerCaptionPositionBottom
 } VKVideoPlayerCaptionPosition;
 
-@interface VKVideoPlayer()
+@interface VKVideoPlayer()<VKVideoPlayerGestureDelegate>
 @property (nonatomic, assign) BOOL scrubbing;
 @property (nonatomic, assign) NSTimeInterval beforeSeek;
 @property (nonatomic, assign) NSTimeInterval previousPlaybackTime;
@@ -99,19 +98,20 @@ typedef enum {
   self.scrubbing = NO;
   self.beforeSeek = 0.0;
   self.previousPlaybackTime = 0;
-//  self.supportedOrientations = [[UIApplication sharedApplication] supportedInterfaceOrientationsForWindow:[[UIApplication sharedApplication] keyWindow]];
+  self.supportedOrientations = [[UIApplication sharedApplication] supportedInterfaceOrientationsForWindow:[[UIApplication sharedApplication] keyWindow]];
   self.supportedOrientations = VKSharedUtility.isPad ? UIInterfaceOrientationMaskAll : UIInterfaceOrientationMaskAllButUpsideDown;
 
   self.forceRotate = NO;
   
   CGRect bounds = [[UIScreen mainScreen] bounds];
   
-  self.portraitFrame = CGRectMake(0, 0, MIN(bounds.size.width, bounds.size.height), MAX(bounds.size.width, bounds.size.height));
+  self.portraitFrame = CGRectMake(0, 0, MIN(bounds.size.width, bounds.size.height), MIN(bounds.size.width, bounds.size.height));
   self.landscapeFrame = CGRectMake(0, 0, MAX(bounds.size.width, bounds.size.height), MIN(bounds.size.width, bounds.size.height));
 }
 
 - (void)initializePlayerView {
   self.view.delegate = self;
+  self.view.gestureDelegate = self;
   [self.view setPlayButtonsSelected:NO];
   [self.view.scrubber setValue:0.0f animated:NO];
   self.view.controlHideCountdown = [self.view.playerControlsAutoHideTime integerValue];
@@ -446,7 +446,6 @@ typedef enum {
         self.avPlayer = [self playerWithPlayerItem:self.playerItem];
         self.player = (id<VKPlayer>)self.avPlayer;
         [playerLayerView setPlayer:self.avPlayer];
-        
       } else {
         // You should deal with the error appropriately.
         [self handleErrorCode:kVideoPlayerErrorAssetLoadError track:track];
@@ -793,7 +792,6 @@ typedef enum {
         self.view.captionBottomView.hidden = NO;
         self.view.captionTopContainerView.hidden = NO;
         self.track.lastDurationWatchedInSeconds = [NSNumber numberWithFloat:[self currentTime]];
-        self.view.bigPlayButton.hidden = NO;
         self.view.messageLabel.hidden = YES;
         self.view.externalDeviceView.hidden = ![self isPlayingOnExternalDevice];
         [self.player pause];
@@ -1030,6 +1028,7 @@ typedef enum {
 
 - (void)playerViewSingleTapped {
   if ([self.delegate respondsToSelector:@selector(videoPlayer:didControlByEvent:)]) {
+      self.view.mbProgress.alpha = 0.f;
     [self.delegate videoPlayer:self didControlByEvent:VKVideoPlayerControlEventTapPlayerView];
   }
 }
@@ -1044,6 +1043,40 @@ typedef enum {
   [[UIApplication sharedApplication] setStatusBarOrientation:interfaceOrientation animated:NO];
 }
 
+// Lilac: add for gesture.(0608)
+#pragma mark - VKVideoPlayerGestureDelegate
+- (void)changeScrubberValueWithSeekTime:(float)seekTime
+{
+    [self seekToTimeInSecond:seekTime userAction:YES completionHandler:^(BOOL finished) {
+        if (finished) {
+            [self.view.mbProgress hide:YES afterDelay:1.0];
+            self.view.bigPlayButton.hidden = NO;
+            [self playButtonPressed];
+        }
+    }];
+}
+
+- (float)updateMBProgressWithCurrent:(float)current andDelta:(float)delta
+{
+    float seekTime = [self currentTime] + ceil(delta/2);
+    NSLog(@"====current: %f, seek:%f, delta:%f",current,seekTime,ceil(delta/2));
+
+    if (seekTime < 0) {
+        seekTime = 0.0;
+    }
+    else if (seekTime > [self.player currentItemDuration]){
+        seekTime = [self.player currentItemDuration];
+    }
+    NSString *currentTime = [VKSharedUtility timeStringFromSecondsValue:(int)seekTime];
+    NSString *totalTime = [VKSharedUtility timeStringFromSecondsValue:(int)[self.player currentItemDuration]];
+    self.view.mbProgress.labelText = [NSString stringWithFormat:@"%@/%@",currentTime,totalTime];
+    [self.view.scrubber setValue:seekTime animated:YES];
+    NSLog(@"mbprogress: %@, scrubber: %f",self.view.mbProgress.labelText,self.view.scrubber.value);
+    
+    return seekTime;
+}
+
+// Lilac: add end.
 #pragma mark - Auto hide controls
 
 - (void)setForceRotate:(BOOL)forceRotate {
@@ -1235,6 +1268,14 @@ typedef enum {
   }
 }
 
+- (CGRect)screenSizeOrientationIndependent {
+    CGRect bounds = [[UIScreen mainScreen] bounds];
+
+    CGSize screenSize = [UIScreen mainScreen].bounds.size;
+    bounds.size = CGSizeMake(MIN(screenSize.width, screenSize.height), MAX(screenSize.width, screenSize.height));
+    return bounds;
+}
+
 - (void)performOrientationChange:(UIInterfaceOrientation)deviceOrientation {
   if (!self.forceRotate) {
     return;
@@ -1243,14 +1284,16 @@ typedef enum {
     [self.delegate videoPlayer:self willChangeOrientationTo:deviceOrientation];
   }
   
-  CGFloat degrees = [self degreesForOrientation:deviceOrientation];
-  __weak __typeof__(self) weakSelf = self;
+  CGFloat degrees = [self degreesForOrientation:deviceOrientation] - [self degreesForOrientation:[[UIApplication sharedApplication] statusBarOrientation]];
+    __weak __typeof__(self) weakSelf = self;
   UIInterfaceOrientation lastOrientation = self.visibleInterfaceOrientation;
   self.visibleInterfaceOrientation = deviceOrientation;
   [UIView animateWithDuration:0.3f animations:^{
-    CGRect bounds = [[UIScreen mainScreen] bounds];
-    CGRect parentBounds;
-    CGRect viewBoutnds;
+  // bounds is orientation-dependent in iOS8, and that will cause problem..
+  // CGRect bounds = [[UIScreen mainScreen] bounds];
+  CGRect bounds = [self screenSizeOrientationIndependent];
+  CGRect parentBounds;
+  CGRect viewBoutnds;
     if (UIInterfaceOrientationIsLandscape(deviceOrientation)) {
       viewBoutnds = CGRectMake(0, 0, CGRectGetWidth(self.landscapeFrame), CGRectGetHeight(self.landscapeFrame));
       parentBounds = CGRectMake(0, 0, CGRectGetHeight(bounds), CGRectGetWidth(bounds));
@@ -1282,7 +1325,8 @@ typedef enum {
     }
   }];
   
-  [[UIApplication sharedApplication] setStatusBarOrientation:self.visibleInterfaceOrientation animated:YES];
+    // this will mess the orientation of the app.
+//  [[UIApplication sharedApplication] setStatusBarOrientation:self.visibleInterfaceOrientation animated:YES];
   [self updateCaptionView:self.view.captionBottomView caption:self.captionBottom playerView:self.view];
   [self updateCaptionView:self.view.captionTopView caption:self.captionTop playerView:self.view];
   self.view.fullscreenButton.selected = self.isFullScreen = UIInterfaceOrientationIsLandscape(deviceOrientation);

@@ -6,13 +6,14 @@
 #import "DemoVideoPlayerViewController.h"
 #import "VKVideoPlayer.h"
 #import "VKVideoPlayerCaptionSRT.h"
-
+#import <MediaPlayer/MediaPlayer.h>
 
 @interface DemoVideoPlayerViewController ()
 @property (nonatomic, strong) NSString *currentLanguageCode;
 @end
 
 @implementation DemoVideoPlayerViewController
+
 
 - (void)viewDidLoad {
   [super viewDidLoad];
@@ -39,16 +40,17 @@
 }
 
 - (void)playSampleClip1 {
-  [self playStream:[NSURL URLWithString:@"http://localhost:12345/ios_240.m3u8"]];
+  [self playStream:[NSURL URLWithString:@"http://localhost:12345/SimpleLove.mp4"]];
+//    [self playStream:[NSURL URLWithString:@"http://192.168.1.157:5080/Chungking.mp4"]];
   
-  [self setLanguageCode:@"JP"];
-  [self.player setCaptionToTop:[self testCaption:@"testCaptionTop"]];
+  [self setLanguageCode:@"ZH"];
+//  [self.player setCaptionToTop:[self testCaption:@"testCaptionTop"]];
 }
 - (void)playSampleClip2 {
-  [self playStream:[NSURL fileURLWithPath:[[NSBundle mainBundle] pathForResource:@"SampleVideo_640x360_1mb" ofType:@"mp4"]]];
-
-  [self setLanguageCode:@"JP"];
-  [self.player setCaptionToTop:[self testCaption:@"testCaptionTop"]];
+//  [self playStream:[NSURL URLWithString:@"http://devimages.apple.com/samplecode/adDemo/ad.m3u8"]];
+//    [self playStream:[NSURL URLWithString:@"rtmp://192.168.1.169/live"]];
+//  [self setLanguageCode:@"JP"];
+//  [self.player setCaptionToTop:[self testCaption:@"testCaptionTop"]];
 }
 
 - (void)playStream:(NSURL*)url {
@@ -70,16 +72,17 @@
   
   UIButton *playSample1Button = [UIButton buttonWithType:UIButtonTypeCustom];
   playSample1Button.frame = CGRectMake(10,40,80,40);
-  [playSample1Button setTitle:@"stream" forState:UIControlStateNormal];
+  [playSample1Button setTitle:@"sample1" forState:UIControlStateNormal];
   [playSample1Button addTarget:self action:@selector(playSampleClip1) forControlEvents:UIControlEventTouchUpInside];
   [self.player.view addSubviewForControl:playSample1Button];
 
   UIButton *playSample2Button = [UIButton buttonWithType:UIButtonTypeCustom];
   playSample2Button.frame = CGRectMake(100,40,80,40);
-  [playSample2Button setTitle:@"local file" forState:UIControlStateNormal];
+  [playSample2Button setTitle:@"sample2" forState:UIControlStateNormal];
   [playSample2Button addTarget:self action:@selector(playSampleClip2) forControlEvents:UIControlEventTouchUpInside];
   [self.player.view addSubviewForControl:playSample2Button];
 }
+
 
 #pragma mark - VKVideoPlayerControllerDelegate
 - (void)videoPlayer:(VKVideoPlayer*)videoPlayer didControlByEvent:(VKVideoPlayerControlEvent)event {
@@ -99,7 +102,7 @@
         [button dismiss];
       } else {
         weakSelf.player.view.controlHideCountdown = -1;
-        [button presentFromViewController:weakSelf title:NSLocalizedString(@"settings.captionSection.subtitleLanguageCell.text", nil) items:subtitleList formatCellBlock:^(UITableViewCell *cell, id item) {
+        [button presentFromViewController:weakSelf title:@"请选择字幕" items:subtitleList formatCellBlock:^(UITableViewCell *cell, id item) {
           
           NSString* code = (NSString*)item;
           cell.textLabel.text = code;
@@ -115,6 +118,12 @@
       }
     });
   }
+    
+    if (event == VKVideoPlayerControlEventTapPlayerView) {
+        self.player.view.bigPlayButton.hidden = NO;
+        [self.player.view.bigPlayButton setImage:[UIImage imageNamed:@"VKVideoPlayer_pause_big"] forState:UIControlStateNormal];
+    }
+
 }
 
 - (void)setLanguageCode:(NSString*)code {
